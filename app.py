@@ -25,7 +25,7 @@ GEMINI_AVAILABLE = False
 
 # Load environment variables
 load_dotenv()
-gemini_api_key = os.getenv("GEMINI_API_KEY")
+gemini_api_key = os.environ.get("GEMINI_API_KEY")
 if not gemini_api_key:
     raise ValueError("GEMINI_API_KEY not found in environment variables or .env file")
 
@@ -163,45 +163,66 @@ def generate_visuals(df):
     """Generate visualizations for the DataFrame."""
     visuals = []
     saved_images = []
-    
+
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     categorical_cols = [col for col in df.select_dtypes('object') if 1 < df[col].nunique() < 30]
-    
+
     try:
         if numeric_cols:
-            # Histogram for numeric columns
+            # Histograms for numeric columns
             for col in numeric_cols:
-                fig, ax = plt.subplots()
-                df[col].hist(ax=ax, bins=30)
-                ax.set_title(f"Histogram of {col}")
-                img_path = savefig(fig)
-                visuals.append(cl.Image(name=f"Histogram of {col}",path=img_path))
-                saved_images.append(img_path)
+                try:
+                    fig, ax = plt.subplots()
+                    df[col].dropna().hist(ax=ax, bins=30)
+                    ax.set_title(f"Histogram of {col}")
+                    ax.set_xlabel(col)
+                    ax.set_ylabel("Frequency")
+                    img_path = savefig(fig)
+                    visuals.append(cl.Image(name=f"Histogram of {col}", path=img_path))
+                    saved_images.append(img_path)
+                    plt.close(fig)
+                except Exception as e:
+                    print(f"Error generating histogram for {col}: {e}")
+                    plt.close()
 
             # Correlation heatmap
             if len(numeric_cols) > 1:
-                corr = df[numeric_cols].corr()
-                fig, ax = plt.subplots(figsize=(10, 8))
-                sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', ax=ax)
-                ax.set_title("Correlation Heatmap")
-                img_path = savefig(fig)
-                visuals.append(cl.Image(name="Correlation Heatmap",path=img_path))
-                saved_images.append(img_path)
+                try:
+                    corr = df[numeric_cols].corr().round(2)
+                    fig, ax = plt.subplots(figsize=(10, 8))
+                    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', ax=ax)
+                    ax.set_title("Correlation Heatmap")
+                    img_path = savefig(fig)
+                    visuals.append(cl.Image(name="Correlation Heatmap", path=img_path))
+                    saved_images.append(img_path)
+                    plt.close(fig)
+                except Exception as e:
+                    print(f"Error generating correlation heatmap: {e}")
+                    plt.close()
 
         if categorical_cols:
             # Bar plots for categorical columns
             for col in categorical_cols:
-                fig, ax = plt.subplots()
-                df[col].value_counts().plot(kind='bar', ax=ax)
-                ax.set_title(f"Bar Plot of {col}")
-                img_path = savefig(fig)
-                visuals.append(cl.Image(name=f"Bar Plot of {col}",path=img_path))
-                saved_images.append(img_path)
+                try:
+                    fig, ax = plt.subplots()
+                    df[col].fillna("Missing").value_counts().head(20).plot(kind='bar', ax=ax)
+                    ax.set_title(f"Bar Plot of {col} (Top 20 Categories)")
+                    ax.set_xlabel(col)
+                    ax.set_ylabel("Count")
+                    img_path = savefig(fig)
+                    visuals.append(cl.Image(name=f"Bar Plot of {col}", path=img_path))
+                    saved_images.append(img_path)
+                    plt.close(fig)
+                except Exception as e:
+                    print(f"Error generating bar plot for {col}: {e}")
+                    plt.close()
+
     except Exception as e:
-        print(f"Error generating visuals: {e}")
+        print(f"Unexpected error generating visuals: {e}")
         plt.close('all')
-        
+
     return visuals, saved_images
+
 
 async def cleanup_images(saved_images):
     """Clean up temporary image files."""
@@ -382,7 +403,8 @@ async def main(message: cl.Message):
         files = await cl.AskFileMessage(
             content="Please upload a CSV file for analysis.",
             accept=["text/csv"],
-            max_files=1
+            max_files=1,
+            max_size_mb=50
         ).send()
         
         if files and len(files) > 0:
