@@ -2,6 +2,9 @@
 
 Welcome to your intelligent AI assistant powered by Google Gemini! This app combines conversational AI with automated Exploratory Data Analysis (EDA) capabilities.
 
+## Live Demo : 
+https://huggingface.co/spaces/TawsifDipto/EDA_Assistant
+
 ## 🚀 Quick Start
 
 Start chatting immediately - no setup required! Ask questions, get coding help, generate images or analyze your data.
